@@ -172,7 +172,7 @@ def read_file(fname):
 
             # New Graph description
             # NOTE: this doesn't work with Python 2.7
-            elif all([x.isnumeric() for x in line]):
+            elif all([x.isdigit() for x in line]):
                 # print('beginning of graph description')
                 # print(line)
                 edges = set()
@@ -181,8 +181,6 @@ def read_file(fname):
                 # V: number of nodes
                 # M: number of edges
                 # Q: number of queries
-                # print(V,M,Q)
-
 
             # Edges
             elif all([x.isalpha() for x in line]) and len(edges) < M:
