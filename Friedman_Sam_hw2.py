@@ -3,7 +3,7 @@ import sys
 
 # Create a Graph object
 class Graph(object):
-    ''' Graph object that has sets of nodes and edges '''
+    """ Graph object that has sets of nodes and edges """
     def __init__(self, edges=set(), nodes=set(), observations=set()):
         self.parents = {}
         self.children = {}
@@ -18,7 +18,7 @@ class Graph(object):
         self.build_parent_and_child_sets()
     
     def add_node(self, node):
-        ''' Add node to graph '''
+        """ Add node to graph """
         if node not in self.nodes:
             self.size += 1
             self.nodes.add((node))
@@ -42,21 +42,21 @@ class Graph(object):
                 self.children[u].add(v)
                 
     def get_parents(self, node):
-        ''' Return parents of node '''
+        """ Return parents of node """
         if node in self.parents:
             return self.parents[node]
         else:
             return set()
     
     def get_children(self, node):
-        ''' Return children of node '''
+        """ Return children of node """
         if node in self.children:
             return self.children[node]
         else:
             return set()
                 
     def find_ancestors(self, source_node):
-        ''' Use a breadth-first search to find all ancestors of node '''
+        """ Use a breadth-first search to find all ancestors of node """
         visited = set()  # initialize ancestor set
         queue = [source_node]              
         while queue:
@@ -68,7 +68,7 @@ class Graph(object):
         return (visited - set(source_node))
     
     def find_descendants(self, source_node):
-        ''' Use a breadth-first search to find all descendants of node '''
+        """ Use a breadth-first search to find all descendants of node """
         visited = set()  # initialize descendant set
         queue = [source_node]              
         while queue:
@@ -81,14 +81,14 @@ class Graph(object):
         
                 
     def d_separated(self, X, Z):
-        ''' 
+        """ 
         Find all nodes that are d_separated from node given observation
         Based on Algorithm 3.1, page 75, in PGM book
         
         X: starting node
         Z: set of observations
         
-        '''
+        """
         # Phase 1: insert all ancestors of Z into A
         L = Z.copy()  # set L to be the set of observations
         A = set()  # set A to be the empty set
@@ -155,62 +155,85 @@ class Graph(object):
         return R
 
 
-
-def main():
-    # Build Graph from homework 1, problem 3
-    nodes = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'}
-    edges = {('A', 'D'), ('B', 'D'), ('D', 'G'), ('D', 'H'), ('G', 'K'), ('H', 'K'),
-             ('H', 'E'), ('C', 'E'), ('E', 'I'), ('F', 'I'), ('F', 'J'), ('I', 'L'),
-             ('J', 'M')}
-    G = Graph(edges=edges)
-    # print(G.get_parents('H'))
-    # print(G.find_ancestors('L'))
-
-    Z = {'K', 'E'}
-    dsep_nodes = G.d_separated('H', Z)
-    print('dsep nodes:', dsep_nodes)
-
 def read_file(fname):
-    ''' Read problem file, generate graph and questions '''
+    """ Read problem file, generate graph and questions """
     g_list = []  # list of graphs
-    p_list = [] # list of problems
-
+    q_list = [] # list of problems
+    edges = set()
+    queries = []
+    V, M, Q = 0, 0, 0
     with open(fname) as f:
         for raw_line in f:
             # split the line into components separated by whitespace
             line = raw_line.split()
             # skip '#' as comment
-            if line[0][0] == '#'
+            if line[0][0] == '#':
                 continue
 
+            # New Graph description
+            # NOTE: this doesn't work with Python 2.7
             elif all([x.isnumeric() for x in line]):
-                print('beginning of graph description')
-                print(line)
-
+                # print('beginning of graph description')
+                # print(line)
+                edges = set()
+                queries = []
                 V, M, Q = [int(x) for x in line]
                 # V: number of nodes
                 # M: number of edges
                 # Q: number of queries
-                print(V,M,Q)
-                continue
+                # print(V,M,Q)
 
 
+            # Edges
+            elif all([x.isalpha() for x in line]) and len(edges) < M:
+                u, v = line
+                edges = edges | {(u, v)}
 
+            # Queries
+            elif line[1]=='|' and len(queries) < Q:
+                y = line[0]   # source node Y
+                z = {x for x in line[2:]}  # evidence set Z
+                queries.append((y, z))
 
+            # Create Graph object
+            if (len(edges) == M) and (len(queries) == Q):
+                print('Finished!!')
+                G = Graph(edges=edges)
 
+                # Validate graph
+                err = False
+                if len(G.nodes) != V:
+                    print('Not the correct number of nodes')
+                    err = True
+                if len(G.edges) != M:
+                    print('Not the correct number of edges')
+                    err = True
+                if err:
+                    return
 
+                g_list.append(G)
+                q_list.append(queries)
 
-
-
+    return g_list, q_list
 
 
 
 if __name__ == "__main__":
 
-    fname = ""
     if len(sys.argv) > 1:
         # read filename as argument
         fname = sys.argv[1]
+        g_list, q_list = read_file(fname)
+        print(g_list[0].edges)
+        print(q_list[0])
 
+    else:
+        # Build Graph from homework 1, problem 3
+        edges = {('A', 'D'), ('B', 'D'), ('D', 'G'), ('D', 'H'), ('G', 'K'), ('H', 'K'),
+                 ('H', 'E'), ('C', 'E'), ('E', 'I'), ('F', 'I'), ('F', 'J'), ('I', 'L'),
+                 ('J', 'M')}
+        G = Graph(edges=edges)
+        Z = {'K', 'E'}
+        dsep_nodes = G.d_separated('H', Z)
+        print('dsep nodes:', dsep_nodes)
 
-    main()
