@@ -1,0 +1,21 @@
+###############
+13 13 2
+A D
+B D
+C E
+D G
+D H
+H E
+E I
+F I
+F J
+G K
+H K
+I L
+J M
+A | K E
+B | L
+#G | D
+#G | D K M
+#B | C G L
+###############
