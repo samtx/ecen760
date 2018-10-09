@@ -36,6 +36,11 @@ class Graph(object):
             pass
 
     def build_parent_and_child_sets(self):
+        """
+        Loop through set of edges and
+            - add nodes to Graph object
+            - create Graph.parents, Graph.children dictionaries
+        """
         for edge in self.edges:
             u, v = edge
             self.add_node(u)
@@ -69,40 +74,13 @@ class Graph(object):
         else:
             return set()
 
-    def find_ancestors(self, source_node):
-        """
-        Use a breadth-first search to find all ancestors of node
-        """
-        visited = set()  # initialize ancestor set
-        queue = [source_node]
-        while queue:
-            vertex = queue.pop(0)
-            if vertex not in visited:
-                visited.add(vertex)
-                queue.extend(self.get_parents(vertex) - visited)
-                print(queue)
-        return (visited - set(source_node))
-
-    def find_descendants(self, source_node):
-        """
-        Use a breadth-first search to find all descendants of node
-        """
-        visited = set()  # initialize descendant set
-        queue = [source_node]
-        while queue:
-            vertex = queue.pop(0)
-            if vertex not in visited:
-                visited.add(vertex)
-                queue.extend(self.get_children(vertex) - visited)
-                print(queue)
-        return (visited - set(source_node))
-
     def is_active(self, a, b, Z):
         """
         Verify if there exists an active trail from node a to b given evidence set Z
         """
         # Find set Y of all nodes that are d_separated from a
         Y = self.d_separated(a, Z)
+
         # If b is in Y then there is no active trail
         return not (b in Y)
 
@@ -118,17 +96,22 @@ class Graph(object):
         R = self.reachable(X, Z)
 
         # Return nodes in G that are not in R and not in Z
-        return self.nodes - R - Z
+        dsep_nodes = self.nodes - R - Z
+
+        return dsep_nodes
 
     def reachable(self, X, Z):
         """ 
         Find all nodes that are reachable via an active trail from the given
         node and evidence set.
+
         Based on Algorithm 3.1, page 75, in PGM book
-        
-        X: starting node
-        Z: set of observations
-        
+
+        inputs:
+            X: starting node
+            Z: set of observations
+        outputs:
+            R: set of nodes reachable via active trail
         """
         # Phase 1: insert all ancestors of Z into A
         L = Z.copy()  # set L to be the set of observations
@@ -242,11 +225,12 @@ if __name__ == "__main__":
                 # Evaluate query
                 dsep_nodes = G.d_separated(X, Z)
                 # print results to stdout
-                out_str = ""
-                for x in dsep_nodes:
-                    out_str += str(x) + " "
-                if not out_str:
-                    out_str = "None"
+                if not dsep_nodes:
+                    out_str = 'None'
+                else:
+                    out_str = ""
+                    for x in dsep_nodes:
+                        out_str += str(x) + " "
                 print(out_str)
 
     else:
@@ -255,11 +239,11 @@ if __name__ == "__main__":
                  ('H', 'E'), ('C', 'E'), ('E', 'I'), ('F', 'I'), ('F', 'J'), ('I', 'L'),
                  ('J', 'M')}
         G = Graph(edges=edges)
-        Z = {'K', 'E'}
-        dsep_nodes = G.d_separated('A', Z)
-        print('dsep nodes:', dsep_nodes)
 
         # Check answers to HW 1, Problem 3
+        print('Check answers from HW 1, Problem 3:')
+
+        # parts 3(a)-(e)
         queries = {
             'a': ('A', 'J', {'G', 'L'}),
             'b': ('A', 'C', {'L'}),
@@ -269,4 +253,24 @@ if __name__ == "__main__":
         }
         for i in ['a', 'b', 'c', 'd', 'e']:
             q = queries[i]
-            print('({}) active trail? {}'.format(i, G.is_active(q[0], q[1], q[2])))
+            out_str = '(3{}) Active trail from {} to {} given {}? {}'.format(
+                i,
+                q[0],
+                q[1],
+                q[2],
+                G.is_active(q[0], q[1], q[2]))
+            print(out_str)
+
+        # parts 3(f)-(g)
+        queries.update({
+            'f': ('A', {'K', 'E'}),
+            'g': ('B', {'L'})
+        })
+        for i in ['f', 'g']:
+            q = queries[i]
+            out_str = '(3{}) Nodes d-separated from {} given {} = {}'.format(
+                i,
+                q[0],
+                q[1],
+                G.d_separated(q[0], q[1]))
+            print(out_str)
