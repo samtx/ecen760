@@ -28,6 +28,10 @@ class Graph(object):
         self.build_parent_and_child_sets()
         self.build_cpds()
 
+        self.root_nodes = set()
+        self.leaf_nodes = set()
+        self.find_root_and_leaf_nodes()
+
     def build_cpds(self):
         """
         Build dict of blank cpds based on number of parents per node
@@ -40,15 +44,128 @@ class Graph(object):
         node = data_list[0][0]
         self.cpd[node].update(data_list)
 
-    def query_cpd(self, x, data_list):
-        prob_idx = [0 for x in self.cpd[x].var_index]
-        for data in data_list:
-            var, val = data
-            var_idx = self.cpd[x].var_index.index(var)
-            prob_idx[var_idx] = val
-        prob_idx = tuple(prob_idx)
-        return self.cpd[x].cpd[prob_idx]
+    def parse_cpd_query(self, query_string):
+        """
+        example: 'X1 | Y0 Z1'
+        """
+        x = []
+        e = []
+        line = query_string.split('|')
+        x_line = line[0].split()
+        e_line = line[1].split()
+        for item in x_line:
+            if item[0].isalpha() and item[1].isdigit():
+                x.append((item[0], int(item[1])))
+        for item in e_line:
+            if item[0].isalpha() and item[1].isdigit():
+                e.append((item[0], int(item[1])))
+        return x, e
 
+    def query_cpd(self, x, e=[]):
+        """
+        x : list of nodes with values... [(node,val),(node,val)]
+        e : same as x
+        return P(x|e)
+        """
+        if isinstance(x, str):
+            x, e = self.parse_cpd_query(x)
+
+        if len(x) == 1:
+
+            prob_idx = [0 for i in self.cpd[x[0][0]].var_index]
+
+            data = x.copy()
+            for y in e:
+                data.append(y)
+            for y in data:
+                var, val = y
+                var_idx = self.cpd[x[0][0]].var_index.index(var)
+                prob_idx[var_idx] = val
+            prob_idx = tuple(prob_idx)
+            return self.cpd[x[0][0]].cpd[prob_idx]
+        else:
+            print("Can't query joint conditional prob yet!")
+
+    def build_lambda_and_pi_values(self):
+        for node in self.nodes:
+            # initialize all lambda and pi values to 1
+            self.lambda_values.update({node:[1.0, 1.0]})
+            self.pi_values.update({node:[1.0, 1.0]})
+
+    def update_lambda_value(self, x, val_x, lambda_val):
+        self.lambda_values[x][val_x] = lambda_val
+
+    def update_pi_value(self, x, val_x, pi_val):
+        self.pi_values[x][val_x] = pi_val
+
+    def find_root_and_leaf_nodes(self):
+        for node in self.nodes:
+            if node not in self.parents:
+                self.root_nodes.add(node)
+            if node not in self.children:
+                self.leaf_nodes.add(node)
+
+    def Pearl(self, x=[], e=[]):
+        """
+        Implement Pearl's message passing algorithm for finding the conditional
+        probability of X=x given E=e
+        :param x: a tuple with (node, value)
+        :param e: a list of tuples [(node, value), ..., (node,value)]
+        :return:
+        """
+        # Initialize network
+        self.observed = set()  # observed nodes and values
+
+        # Initialize lambda and pi values for all nodes and node values
+        self.lambda_values = {}
+        self.pi_values = {}
+        self.build_lambda_and_pi_values()
+
+        # loop over root nodes
+        for node in self.root_nodes:
+            for val in [0,1]:
+                prob = self.query_cpd([(node, val)],[])
+                #print(node, val, prob)
+                self.pi_values[node][val] = prob
+            for W in self.get_children(node):
+                self.send_pi_msg(node, W)
+
+    def update_network(self, node, val):
+        """
+        observed set = {(E,e)... (E,e)}
+        """
+        # add observed node and value to observed set
+        self.observed.add((node,val))
+
+        for v in [0,1]:
+            if v == val:
+                self.update_lambda_value(node, v, 1.)
+                self.update_pi_value(node, v, 1.)
+            else:
+                self.update_lambda_value(node, v, 0.)
+                self.update_pi_value(node, v, 0.)
+
+        node_set = self.get_parents(node) - self.observed
+        for Z in node_set:
+            self.send_lambda_msg(node, Z)
+        for Y in self.get_children(node):
+            self.send_pi_msg(node, Y)
+
+    def send_lambda_msg(self, Y, X):
+        """
+        Y : child
+        X : parent
+        """
+
+        # get other parents of Y besides X
+        W = self.get_parents(Y) - X
+
+        for val in [0,1]:
+            pass
+
+
+    def send_pi_msg(self, node, Y):
+        pass
 
     def add_node(self, node):
         """
@@ -317,8 +434,18 @@ if __name__ == "__main__":
         # D1 | C0 = 0.8
         # D1 | C1 =
         #
-        data_list = [('G',0),('D',1)]
-        print(G.query_cpd(data_list[0][0],data_list))
+        query = [[('G',0)],[('D',1)]]
+        print(G.query_cpd(query[0],query[1]))
+        print(G.query_cpd("G0 | D1"))
+        print(G.query_cpd("C1 | A1 B0"))
+
+        print(G.root_nodes)
+        print(G.leaf_nodes)
+
+        G.Pearl()
+
+        for key, value in list(G.pi_values.items()):
+            print(key, value)
 
         for query in queries:
             X, Z = query
