@@ -201,17 +201,15 @@ class Graph(object):
             if node not in self.children:
                 self.leaf_nodes.add(node)
 
-    def infer(self, x=None, e=None):
+    def infer(self, X, E=None):
         """
         Infer the probability of X=x given E=e
         """
-        if len(x) == 1:
-            # no joint probability
-            prob = self.Pearl(x[0], e)
-        else:
-            # joint probability
-            print('Joint probability not implemented yet!')
-            prob = 0.0
+        prob = 1.
+        while X:
+            Xi = X.pop(0) # remove first node
+            prob *= self.Pearl(Xi, E)
+            E.append(Xi) # add node to evidence
         return prob
 
     def Pearl(self, X, E=[]):
@@ -244,7 +242,11 @@ class Graph(object):
 
         sum_x = 0.0
         for val_x in [0, 1]:
-            sum_x += self.get_lambda_value(X[0], val_x) * self.get_pi_value(X[0], val_x)
+            lambda_val = self.get_lambda_value(X[0], val_x)
+            pi_val = self.get_pi_value(X[0], val_x)
+            if DEBUG:
+                print('x={},  lambda_val={},  pi_val={}'.format(val_x, lambda_val, pi_val))
+            sum_x += lambda_val * pi_val
         p = (1 / sum_x) * self.get_lambda_value(X[0], X[1]) * self.get_pi_value(X[0], X[1])
 
         return p
@@ -298,6 +300,8 @@ class Graph(object):
 
         node_set = self.get_parents(node) - set(self.observed.keys())
         for Z in node_set:
+            if DEBUG:
+                print('node={}  Z={}'.format(node,Z))
             self.send_lambda_msg(node, Z)
         for Y in self.get_children(node):
             self.send_pi_msg(node, Y)
@@ -308,19 +312,23 @@ class Graph(object):
         X : parent
         """
 
+        if DEBUG:
+            print('SEND LAMBDA MSG')
         # get other parents of Y besides X
         W_set = self.get_parents(Y) - {X}
+        if DEBUG:
+            print('W_set={}'.format(W_set))
         k = len(W_set)  # size of W set
 
-        P_hat = [0., 0.]
-
         for val_x in [0, 1]:
-
+            if DEBUG:
+                print('{}={}'.format(X, val_x))
             # Sum over values of Y
             sum_y = 0.
 
             for val_y in [0,1]:
-
+                if DEBUG:
+                    print('    {}={}'.format(Y, val_y))
                 # Sum over values of W's
                 sum_w = 0.
 
@@ -332,8 +340,11 @@ class Graph(object):
                 # generate full factorial of all possible values for w
                 w_full_factorial = itertools.product([0, 1], repeat=k)
 
+                # print('len={}'.format(len(w_full_factorial)))
                 for w_list in w_full_factorial:
 
+                    if DEBUG:
+                        print('        w_list={}'.format(w_list))
                     # set values of W nodes
                     w_i_idx = 1  # starting index for w_i
                     for w_i_val in w_list:
@@ -341,38 +352,47 @@ class Graph(object):
                         w_i_idx += 1
 
                     prob_y_given_x = self.query_cpd([(Y, val_y)], cond_values)
+                    if DEBUG:
+                        print('        P({}={} | {} ) = {}'.format(Y, val_y, cond_values, prob_y_given_x))
 
                     # get product of pi msg of Y
                     pi_msgs = 1.
+                    if DEBUG:
+                        print('        cond_values={}'.format(cond_values))
                     for w_item in cond_values[1:]:
-                        pi_msgs *= self.get_pi_msg(w_item[0], Y, w_item[1])
+                        pi_msg = self.get_pi_msg(w_item[0], Y, w_item[1])
+                        if DEBUG:
+                            print('            pi_{{ {} }} ({}={}) = {}'.format(Y, w_item[0], w_item[1], pi_msg))
+                        pi_msgs *= pi_msg
 
+                    if DEBUG:
+                        print('        pi_msgs={}'.format(pi_msgs))
                     sum_w += prob_y_given_x * pi_msgs
 
+                if DEBUG:
+                    print('    sum_w={}'.format(sum_w))
                 sum_y += sum_w * self.get_lambda_value(Y, val_y)
 
             # Update lambda message with calculated sum
             self.update_lambda_msg(X, Y, val_x, sum_y)
 
-            # Set P hat
-            P_hat[val_x] = self.get_lambda_value(X, val_x) * self.get_pi_value(X, val_x)
-
-        alpha = np.sum(P_hat)
-
-        # calculate P(x|e) with alpha
-        # ....
+            # Update lambda value with product of lambda messages
+            lambda_val = 1.0
+            for U in self.get_children(X):
+                lambda_val *= self.get_lambda_msg(X, U, val_x)
+            self.update_lambda_value(X, val_x, lambda_val)
 
         # Send lambda message to parents of X
-        Z_set = self.get_parents(X) - set(self.observed.keys())
+        Z_set = self.get_parents(X)# - set(self.observed.keys())
         for z_node in Z_set:
+            if z_node in self.observed:
+                continue
             self.send_lambda_msg(X, z_node)
 
         # Send pi message to children of X
         U_set = self.get_children(X) - {Y}
         for u_node in U_set:
             self.send_pi_msg(X, u_node)
-
-
 
     def send_pi_msg(self, Z, X):
         """
@@ -646,7 +666,8 @@ def read_file(fname):
     # Create Graph object
     if (len(edges) == M)  and (len(cpds) == R):
         G = Graph(edges=edges)
-        print('make graph')
+        if DEBUG:
+            print('make graph')
         for cpd in cpds:
             # print(cpd)
             G.update_cpd(cpd)
