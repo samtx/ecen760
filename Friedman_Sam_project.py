@@ -25,34 +25,26 @@ class Graph(object):
             self.size = 0
         self.edges = edges
         self.cpd = {}  # conditional probability distributions
-        self.p = {}    # marginal probability distributions
 
         self.build_parent_and_child_sets()
         self.build_cpds()
-        self.build_marginals()
 
         self.root_nodes = set()
         self.leaf_nodes = set()
         self.find_root_and_leaf_nodes()
 
-    def build_marginals(self):
-        """
-        Build dict of blank arrays for each node
-        """
-        for node in self.nodes:
-            self.p.update({
-                node: np.zeros(2)  # binary variables
-            })
-
     def build_cpds(self):
         """
-        Build dict of blank cpds based on number of parents per node
+        Build dict of blank CPDs based on number of parents per node
         """
         for node in self.nodes:
             num_parents = len(self.get_parents(node))
             self.cpd[node] = CPD(num_parents + 1)
 
     def update_cpd(self, data_list):
+        """
+        Update conditional probability distribution
+        """
         node = data_list[0][0]
         self.cpd[node].update(data_list)
 
@@ -75,9 +67,15 @@ class Graph(object):
 
     def query_cpd(self, x, e=[]):
         """
-        x : list of nodes with values... [(node,val),(node,val)]
-        e : same as x
-        return P(x|e)
+        Query Bayesian Network conditional probability distribution
+
+        Inputs:
+            x : tuple of node with value... (node,val)
+            e : list of tuples of conditional nodes and values
+                [(node1,value1),...(nodeN,valueN)]
+
+        Output:
+            P(x|e)
         """
         if isinstance(x, str):
             x, e = self.parse_cpd_query(x)
@@ -99,6 +97,10 @@ class Graph(object):
             print("Can't query joint conditional prob yet!")
 
     def build_lambda_and_pi_values_and_msg(self):
+        """
+        Build dictionaries of lambda and pi values and messages
+        Initialize all values and messages to 1.0
+        """
         for node in self.nodes:
             # initialize all lambda and pi values and msg to 1
             self.lambda_values.update({node: [1.0, 1.0]})
@@ -125,11 +127,19 @@ class Graph(object):
                 # init pi msg to 1
                 self.pi_msg[node].update({child: [1.0, 1.0]})
 
-    def update_lambda_value(self, x, val_x, lambda_val):
-        self.lambda_values[x][val_x] = lambda_val
+    def update_lambda_value(self, X, val_x, lambda_val):
+        """
+        Update the lambda value for
+            lambda(X = val_x) = lambda_val
+        """
+        self.lambda_values[X][val_x] = lambda_val
 
-    def update_pi_value(self, x, val_x, pi_val):
-        self.pi_values[x][val_x] = pi_val
+    def update_pi_value(self, X, val_x, pi_val):
+        """
+        Update the pi value for
+            pi(X = val_x) = pi_val
+        """
+        self.pi_values[X][val_x] = pi_val
 
     def update_lambda_msg(self, X, U, val_x, lambda_msg_val):
         """
@@ -155,17 +165,26 @@ class Graph(object):
         """
         self.pi_msg[W][X][val_w] = pi_msg_val
 
-    def get_lambda_value(self, x, val_x):
-        return self.lambda_values[x][val_x]
-
-    def get_pi_value(self, x, val_x):
-        return self.pi_values[x][val_x]
-
-    def get_lambda_msg(self, x, child, val_x):
+    def get_lambda_value(self, X, val_x):
         """
-        lambda_{child Y} (node x = val_x)
+        Return the lambda value for
+            lambda(X = val_x)
         """
-        return self.lambda_msg[child][x][val_x]
+        return self.lambda_values[X][val_x]
+
+    def get_pi_value(self, X, val_x):
+        """
+        Return the pi value for
+            pi(X = val_x)
+        """
+        return self.pi_values[X][val_x]
+
+    def get_lambda_msg(self, X, child, val_x):
+        """
+        Return the lambda message for
+           lambda_{child Y}(X = val_x)
+        """
+        return self.lambda_msg[child][X][val_x]
 
     def get_pi_msg(self, x, child, val_x):
         return self.pi_msg[x][child][val_x]
@@ -179,7 +198,17 @@ class Graph(object):
 
     def infer(self, X, E=None):
         """
-        Infer the probability of X=x given E=e
+        Infer the probability of X=x given E=e.
+
+        X can be a joint distribution
+
+        Inputs:
+            X: a list of tuples with [(node, value), ..., (node,value)]
+            E: same as X
+        note: X can be a query string, e.g. "P(A1,C1|B1,D0)"
+
+        Output:
+            p: probability of (joint) event calculated from inference
         """
         if isinstance(X, str):
             X, E = parse_query(X)
@@ -195,15 +224,21 @@ class Graph(object):
         """
         Implement Pearl's message passing algorithm for finding the conditional
         probability of X=x given E=e
-        :param x: a tuple with (node, value)
-        :param e: a list of tuples [(node, value), ..., (node,value)]
-        :return:
+
+        Inputs:
+            X: a tuple with (node, value)
+            E: a list of tuples with [(node, value), ..., (node,value)]
+        note: X can be a query string, e.g. "P(A1|B1)"
+
+        Output:
+            p: probability of event calculated from inference
         """
+        if isinstance(X, str):
+            X, E = parse_query(X)
 
         self.initialize_network()
 
         for E_i in E:
-            # E_i = (E_node, E_val)
             self.update_network(E_i[0], E_i[1])
 
         sum_x = 0.0
@@ -216,6 +251,9 @@ class Graph(object):
         return p
 
     def initialize_network(self):
+        """
+        Initialize network for Pearl's message passing algorithm
+        """
         # Initialize network
         self.observed = {}  # observed nodes and values
 
@@ -236,6 +274,8 @@ class Graph(object):
 
     def update_network(self, node, val):
         """
+        Update the network for Pearl's message passing algorithm
+
         observed set = {(E,e)... (E,e)}
         """
         # add observed node and value to observed set
@@ -257,10 +297,10 @@ class Graph(object):
 
     def send_lambda_msg(self, Y, X):
         """
-        Y : child
-        X : parent
+        Send a Lambda message from child 'Y' to parent 'X'
+        Y : child node
+        X : parent node
         """
-
         # get other parents of Y besides X
         W_set = self.get_parents(Y) - {X}
         k = len(W_set)  # size of W set
@@ -324,10 +364,9 @@ class Graph(object):
 
     def send_pi_msg(self, Z, X):
         """
-        Send pi-message from parent 'Z' to child 'X'
-        :param Z:
-        :param X:
-        :return:
+        Send a pi message from parent 'Z' to child 'X'
+        Z : parent node
+        X : child node
         """
 
         # For each value of node Z
@@ -445,8 +484,6 @@ class Graph(object):
             return set()
 
 
-
-
 class CPD(object):
     """
     Conditional probability distribution table for binary random variables
@@ -465,8 +502,10 @@ class CPD(object):
 
     def update(self, data_list):
         """
-        :param data_list:  [(variable, value, probability),(givenVar, givenVal),...,(givenVar, givenVal)]
-        :return:
+        Update the CPD for the given variable and value with the conditional variables and values
+
+        Inputs:
+            data_list:  [(variable, value, probability),(givenVar, givenVal),...,(givenVar, givenVal)]
         """
         # build var name index
         if not self.var_index:
@@ -490,6 +529,9 @@ class CPD(object):
 
 
 def read_problem_query(query_line):
+    """
+    Read line in project file to get problem number and query list
+    """
     problem_query = {
         'question_number': query_line[0],
         'query_list': []
@@ -500,6 +542,9 @@ def read_problem_query(query_line):
 
 def parse_query(qstr):
     """
+    Parse a query string to extract the probability nodes and values
+    and evidence nodes and values
+
     query string:
     qstr = 'P(A1, B0 | D0, F1)'
          = 'P(A1)'
@@ -535,6 +580,7 @@ def read_file(fname):
     """
     Read problem file, generate graph and questions
     """
+    G = None
     edges = set()
     queries = []
     cpds = []
@@ -621,4 +667,4 @@ if __name__ == "__main__":
                 print('    {} = {:.4f}'.format(q, p))
 
     else:
-        print('Include filename for Graph parameters as argument')
+        print("Include filename 'project.txt' for Graph parameters as argument")
