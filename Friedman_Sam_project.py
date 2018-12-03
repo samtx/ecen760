@@ -205,6 +205,9 @@ class Graph(object):
         """
         Infer the probability of X=x given E=e
         """
+        if isinstance(X, str):
+            X, E = parse_query(X)
+
         prob = 1.
         while X:
             Xi = X.pop(0) # remove first node
@@ -574,34 +577,58 @@ class CPD(object):
         # print('\n')
 
 
-def read_problem_query(query_str):
-    q_num_regex = "^\(\w+\)"
-    query_regex = "P\([,\s\w]+\)|P\([,\s\w]+\|[,\s\w]+\)"
+def read_problem_query(query_line):
+    # q_num_regex = "^\(\w+\)"
+    # query_regex = "P\([,\s\w]+\)|P\([,\s\w]+\|[,\s\w]+\)"
     # find question number
-    q_num = re.search(q_num_regex, query_str)
+    # q_num = re.search(q_num_regex, query_str)
     problem_query = {
-        'question_number': q_num.group(0),
+        'question_number': query_line[0],
         'query_list': []
     }
-    for match in re.finditer(query_regex,query_str):
-        query = match.group(0)  # get individual query
-        problem_query['query_list'].append(query)  # add to query list
+    for qstr in query_line[1:]:
+        problem_query['query_list'].append(qstr)  # add to query list
     return problem_query
 
-def parse_query(one_query_str):
+def parse_query(qstr):
     """
-    one_query_str = 'P(A1, B0 | D0, F1)'
-                  = 'P(A1)'
-                  = 'P(A1|D1,F0)'
+    query string:
+    qstr = 'P(A1, B0 | D0, F1)'
+         = 'P(A1)'
+         = 'P(A1|D1,F0)'
     """
-
-    x = [] # nodes to query
-    e = [] # evidence nodes
-    query = one_query_str.lstrip('P(').rstrip(')') # remove P( and ) from string
-    query = query.split('|')  # split by query nodes and evidence nodes
-    x_tmp = query[0]
-    e_tmp = query[1]
-    return x, e
+    node_regex = '([a-z]+)\d' # with flags gi
+    value_regex = '[a-z]+(\d)' # with flags gi
+    X = [] # nodes to query
+    E = [] # evidence nodes
+    try:
+        query = qstr.lstrip('P(').rstrip(')') # remove P( and ) from string
+        query = query.split('|')  # split by query nodes and evidence nodes
+        nodes = query[0].split(',')
+        if len(query) > 1:
+            evidence = query[1].split(',')
+        else:
+            evidence = []
+        DEBUG=False
+        if DEBUG:
+            print('nodes={}'.format(nodes))
+            print('evidence={}'.format(evidence))
+            print(nodes)
+        for node in nodes:
+            if DEBUG:
+                print('node = {}'.format(node))
+            n = re.search(node_regex, node, re.I).group(1)
+            v = int(re.search(value_regex, node, re.I).group(1))
+            X.append((n, v))
+        for node in evidence:
+            # print('$$$',node)
+            n = re.search(node_regex, node, re.I).group(1)
+            v = int(re.search(value_regex, node, re.I).group(1))
+            E.append((n, v))
+    except:
+        print('Invalid query string: "{}"'.format(qstr))
+        raise
+    return X, E
 
 
 def read_file(fname):
@@ -618,6 +645,9 @@ def read_file(fname):
         for raw_line in f:
             # split the line into components separated by whitespace
             line = raw_line.split()
+            if DEBUG:
+                print(line)
+
             # skip '#' as comment
             if line[0][0] == '#':
                 continue
@@ -654,14 +684,13 @@ def read_file(fname):
                 cpds.append(data_list)
 
             # Queries
-            # use more complicated regex if there is time
-            # regex: P\([,\s\w]+\)|P\([,\s\w]+\|[,\s\w]+\)
-            #regex = 'P\([,\s\w]+\)|P\([,\s\w]+\|[,\s\w]+\)'
-
-            # elif any([query_check.match(item) for item in line]) and (len(queries) < Q):
-            #     print('its a query!')
-            #     prob_dict = read_problem_query(line)
-            #     queries.append(prob_dict)
+            elif any([query_check.match(item) for item in line]) and (len(queries) < Q):
+                if DEBUG:
+                    print('Q={}, its a query!'.format(len(queries)),line)
+                    for q in line[1:]:
+                        print('q=',q)
+                prob_dict = read_problem_query(line)
+                queries.append(prob_dict)
 
     # Create Graph object
     if (len(edges) == M)  and (len(cpds) == R):
@@ -693,91 +722,39 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         # read filename as argument
         fname = sys.argv[1]
-        G, _ = read_file(fname)
+        G, queries = read_file(fname)
+        # pprint.pprint(queries)
+
         # Run queries from file
+        for query in queries:
+            print('Problem {}'.format(query['question_number']))
+            for q in query['query_list']:
+                p = G.infer(q)
+                print('    {} = {:.4f}'.format(q, p))
+
         # print(G.edges)
         # print(G.cpd)
         # for node, cpd in iter(G.cpd.items()):
         #     print(node, cpd.cpd)
         #
-        queries = [
-            [[('A', 1)], [('B', 0)]],
-            [[('A', 1)], [('D', 0)]],
-            [[('B', 1)], [('A', 1)]],
-            [[('B', 1)], [('C', 1)]],
-            [[('A', 1)], [('B', 0)]],
-            [[('C', 1)], []],
-            [[('C', 1)], [('A', 1)]],
-            [[('A', 1), ('D', 1)], [('F', 0), ('B', 1)]]
-        ]
+        # queries = [
+        #     [[('A', 1)], [('B', 0)]],
+        #     [[('A', 1)], [('D', 0)]],
+        #     [[('B', 1)], [('A', 1)]],
+        #     [[('B', 1)], [('C', 1)]],
+        #     [[('A', 1)], [('B', 0)]],
+        #     [[('C', 1)], []],
+        #     [[('C', 1)], [('A', 1)]],
+        #     [[('A', 1), ('D', 1)], [('F', 0), ('B', 1)]]
+        # ]
 
-        for q in queries:
-            p = G.infer(q[0], q[1])
-            print(q, p)
-        # G.Pearl()
-        #
+        # for q in queries:
+        #     p = G.infer(q[0], q[1])
+        #     print(q, p)
 
     else:
 
-        # Create list of conditional nodes and values
-        k = 4
-        # cond_values = [['x', 0], ['w1', 0], ['w2', 0], ['w3', 0], ['w4', 0]]
-        W_set = {'w1','w2','w3','w4'}
-        cond_values = [['x',0]]
-        for w_node in W_set:
-            cond_values.append([w_node, 0])
-
-        # generate full factorial of all possible values for w
-        w_full_factorial = itertools.product([0, 1], repeat=k)
-
-        for w_list in w_full_factorial:
-
-            # set values of W nodes
-            w_i_idx = 1  # starting index for w_i
-            for w_i_val in w_list:
-                # print(w_i_idx)
-                cond_values[w_i_idx][1] = w_i_val
-                w_i_idx += 1
-            print(cond_values)
-        #
-        #
-        # # Build Graph from homework 1, problem 3
-        # edges = {('A', 'D'), ('B', 'D'), ('D', 'G'), ('D', 'H'), ('G', 'K'), ('H', 'K'),
-        #          ('H', 'E'), ('C', 'E'), ('E', 'I'), ('F', 'I'), ('F', 'J'), ('I', 'L'),
-        #          ('J', 'M')}
-        # G = Graph(edges=edges)
-        #
-        # # Check answers to HW 1, Problem 3
-        # print('Check answers from HW 1, Problem 3:')
-        #
-        # # parts 3(a)-(e)
-        # queries = {
-        #     'a': ('A', 'J', {'G', 'L'}),
-        #     'b': ('A', 'C', {'L'}),
-        #     'c': ('G', 'L', {'D'}),
-        #     'd': ('G', 'L', {'D', 'K', 'M'}),
-        #     'e': ('B', 'F', {'C', 'G', 'L'})
-        # }
-        # for i in ['a', 'b', 'c', 'd', 'e']:
-        #     q = queries[i]
-        #     out_str = '(3{}) Active trail from {} to {} given {}? {}'.format(
-        #         i,
-        #         q[0],
-        #         q[1],
-        #         q[2],
-        #         G.is_active(q[0], q[1], q[2]))
-        #     print(out_str)
-        #
-        # # parts 3(f)-(g)
-        # queries.update({
-        #     'f': ('A', {'K', 'E'}),
-        #     'g': ('B', {'L'})
-        # })
-        # for i in ['f', 'g']:
-        #     q = queries[i]
-        #     out_str = '(3{}) Nodes d-separated from {} given {} = {}'.format(
-        #         i,
-        #         q[0],
-        #         q[1],
-        #         G.d_separated(q[0], q[1]))
-        #     print(out_str)
+        qstr = "P( A1, B1 | C0, D1)      "
+        X, E = parse_query(qstr)
+        print(X)
+        print(E)
