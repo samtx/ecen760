@@ -1,25 +1,20 @@
 # Sam Friedman
-# 11/29/2018
+# 12/2/2018
 # Project
 # ECEN 760
 
 from __future__ import print_function
 
-import numpy as np   # Needs to be downloaded
+import numpy as np   # Numpy >= 1.15.4, needs to be downloaded
 import itertools     # standard library
-from collections import OrderedDict  # standard library
-import sys  # standard library
-import re   # standard library
-import pprint
+import sys           # standard library
+import re            # standard library
 
-
-DEBUG = False
 
 class Graph(object):
     """
     Graph object that has sets of nodes and edges
     """
-
     def __init__(self, edges=set(), nodes=set()):
         self.parents = {}
         self.children = {}
@@ -48,12 +43,6 @@ class Graph(object):
             self.p.update({
                 node: np.zeros(2)  # binary variables
             })
-
-    # def update_marginal(self, node, value, prob):
-    #     """
-    #     Set the marginal probability for the given node and value
-    #     """
-    #     self.p[node][value] = prob
 
     def build_cpds(self):
         """
@@ -124,8 +113,6 @@ class Graph(object):
             for parent in self.get_parents(node):
                 # init lambda msg to 1
                 # lambda_{child}(parent node value)
-                if DEBUG:
-                    print('Node={}  Parent={}'.format(node, parent))
                 self.lambda_msg[node].update({parent: [1.0, 1.0]})
 
             # pi msgs are sent from parent to child for each parent value
@@ -136,8 +123,6 @@ class Graph(object):
             self.pi_msg.update({node: {}})
             for child in self.get_children(node):
                 # init pi msg to 1
-                if DEBUG:
-                    print('Node={}  Child={}'.format(node, child))
                 self.pi_msg[node].update({child: [1.0, 1.0]})
 
     def update_lambda_value(self, x, val_x, lambda_val):
@@ -156,9 +141,6 @@ class Graph(object):
 
         lambda msg are sent from child to parent node for parent value
         """
-        if DEBUG:
-            print('Update Lambda Msg')
-            print('U={}  X={}  val_x={}'.format(U, X, val_x))
         self.lambda_msg[U][X][val_x] = lambda_msg_val
 
     def update_pi_msg(self, X, W, val_w, pi_msg_val):
@@ -171,15 +153,9 @@ class Graph(object):
 
         pi msg are sent from parent to child for parent value
         """
-        if DEBUG:
-            print('Update Pi Msg')
-            print('W={}  X={}  val_w={}'.format(W, X, val_w))
         self.pi_msg[W][X][val_w] = pi_msg_val
 
     def get_lambda_value(self, x, val_x):
-        if DEBUG:
-            print('Get Lambda Value')
-            print('x={}, val_x={}'.format(x, val_x))
         return self.lambda_values[x][val_x]
 
     def get_pi_value(self, x, val_x):
@@ -226,19 +202,6 @@ class Graph(object):
 
         self.initialize_network()
 
-        if DEBUG:
-            print('Lambda Values')
-            pprint.pprint(self.lambda_values)
-
-            print('Pi Values')
-            pprint.pprint(self.pi_values)
-
-            print('Lambda Messages')
-            pprint.pprint(self.lambda_msg)
-
-            print('Pi Msg')
-            pprint.pprint(self.pi_msg)
-
         for E_i in E:
             # E_i = (E_node, E_val)
             self.update_network(E_i[0], E_i[1])
@@ -247,8 +210,6 @@ class Graph(object):
         for val_x in [0, 1]:
             lambda_val = self.get_lambda_value(X[0], val_x)
             pi_val = self.get_pi_value(X[0], val_x)
-            if DEBUG:
-                print('x={},  lambda_val={},  pi_val={}'.format(val_x, lambda_val, pi_val))
             sum_x += lambda_val * pi_val
         p = (1 / sum_x) * self.get_lambda_value(X[0], X[1]) * self.get_pi_value(X[0], X[1])
 
@@ -264,19 +225,6 @@ class Graph(object):
         self.lambda_msg = {}
         self.pi_msg = {}
         self.build_lambda_and_pi_values_and_msg()
-
-        if DEBUG:
-            print('Lambda Values')
-            pprint.pprint(self.lambda_values)
-
-            print('Pi Values')
-            pprint.pprint(self.pi_values)
-
-            print('Lambda Messages')
-            pprint.pprint(self.lambda_msg)
-
-            print('Pi Msg')
-            pprint.pprint(self.pi_msg)
 
         # loop over root nodes
         for node in self.root_nodes:
@@ -303,8 +251,6 @@ class Graph(object):
 
         node_set = self.get_parents(node) - set(self.observed.keys())
         for Z in node_set:
-            if DEBUG:
-                print('node={}  Z={}'.format(node,Z))
             self.send_lambda_msg(node, Z)
         for Y in self.get_children(node):
             self.send_pi_msg(node, Y)
@@ -315,23 +261,15 @@ class Graph(object):
         X : parent
         """
 
-        if DEBUG:
-            print('SEND LAMBDA MSG')
         # get other parents of Y besides X
         W_set = self.get_parents(Y) - {X}
-        if DEBUG:
-            print('W_set={}'.format(W_set))
         k = len(W_set)  # size of W set
 
         for val_x in [0, 1]:
-            if DEBUG:
-                print('{}={}'.format(X, val_x))
             # Sum over values of Y
             sum_y = 0.
 
             for val_y in [0,1]:
-                if DEBUG:
-                    print('    {}={}'.format(Y, val_y))
                 # Sum over values of W's
                 sum_w = 0.
 
@@ -343,11 +281,8 @@ class Graph(object):
                 # generate full factorial of all possible values for w
                 w_full_factorial = itertools.product([0, 1], repeat=k)
 
-                # print('len={}'.format(len(w_full_factorial)))
                 for w_list in w_full_factorial:
 
-                    if DEBUG:
-                        print('        w_list={}'.format(w_list))
                     # set values of W nodes
                     w_i_idx = 1  # starting index for w_i
                     for w_i_val in w_list:
@@ -355,25 +290,15 @@ class Graph(object):
                         w_i_idx += 1
 
                     prob_y_given_x = self.query_cpd([(Y, val_y)], cond_values)
-                    if DEBUG:
-                        print('        P({}={} | {} ) = {}'.format(Y, val_y, cond_values, prob_y_given_x))
 
                     # get product of pi msg of Y
                     pi_msgs = 1.
-                    if DEBUG:
-                        print('        cond_values={}'.format(cond_values))
                     for w_item in cond_values[1:]:
                         pi_msg = self.get_pi_msg(w_item[0], Y, w_item[1])
-                        if DEBUG:
-                            print('            pi_{{ {} }} ({}={}) = {}'.format(Y, w_item[0], w_item[1], pi_msg))
                         pi_msgs *= pi_msg
 
-                    if DEBUG:
-                        print('        pi_msgs={}'.format(pi_msgs))
                     sum_w += prob_y_given_x * pi_msgs
 
-                if DEBUG:
-                    print('    sum_w={}'.format(sum_w))
                 sum_y += sum_w * self.get_lambda_value(Y, val_y)
 
             # Update lambda message with calculated sum
@@ -386,7 +311,7 @@ class Graph(object):
             self.update_lambda_value(X, val_x, lambda_val)
 
         # Send lambda message to parents of X
-        Z_set = self.get_parents(X)# - set(self.observed.keys())
+        Z_set = self.get_parents(X)
         for z_node in Z_set:
             if z_node in self.observed:
                 continue
@@ -418,9 +343,6 @@ class Graph(object):
 
             pi_msg_val = self.get_pi_value(Z, val_z) * lambda_msgs
             # update pi msg
-            if DEBUG:
-                pprint.pprint(self.pi_msg)
-                print('X={}  Z={}  val_z={:d}  pi_msg_val={:.4f}'.format(X,Z,val_z,pi_msg_val))
             self.update_pi_msg(X, Z, val_z, pi_msg_val)
 
         if X not in self.observed:
@@ -457,8 +379,6 @@ class Graph(object):
                     sum_z += prob_x_given_z * pi_msgs
 
                 self.update_pi_value(X, val_x, sum_z)
-
-            # alpha = sum_{x}(P_tilde(x))
 
             for Y in self.get_children(X):
                 self.send_pi_msg(X, Y)
@@ -531,7 +451,6 @@ class CPD(object):
     """
     Conditional probability distribution table for binary random variables
     """
-
     def __init__(self, ndim):
         size_array = [2]
         if ndim > 1:
@@ -555,33 +474,22 @@ class CPD(object):
             self.build_index(var_list)
 
         # get index of cpd to update
-        # prob_idx = list(np.zeros([len(data_list)], dtype=int))  # index of cpd to change
         prob_idx = [0]*len(data_list) # index of cpd to change
         for data in data_list:
             idx = self.var_index.index(data[0])
             prob_idx[idx] = data[1]
         alt_prob_idx = prob_idx[:]
-        # print(alt_prob_idx)
         alt_prob_idx[0] = 1 - alt_prob_idx[0]  # flip the outcome
         prob_idx = tuple(prob_idx)
         alt_prob_idx = tuple(alt_prob_idx)
 
         # update cpd with probability value
         prob_value = data_list[0][2]
-        # cpd = self.cpd
         self.cpd[prob_idx] = prob_value
         self.cpd[alt_prob_idx] = np.round(1 - prob_value, 6)
 
-        # print('\n')
-        # print(data_list[0][0], '\n', self.cpd)
-        # print('\n')
-
 
 def read_problem_query(query_line):
-    # q_num_regex = "^\(\w+\)"
-    # query_regex = "P\([,\s\w]+\)|P\([,\s\w]+\|[,\s\w]+\)"
-    # find question number
-    # q_num = re.search(q_num_regex, query_str)
     problem_query = {
         'question_number': query_line[0],
         'query_list': []
@@ -609,19 +517,11 @@ def parse_query(qstr):
             evidence = query[1].split(',')
         else:
             evidence = []
-        DEBUG=False
-        if DEBUG:
-            print('nodes={}'.format(nodes))
-            print('evidence={}'.format(evidence))
-            print(nodes)
         for node in nodes:
-            if DEBUG:
-                print('node = {}'.format(node))
             n = re.search(node_regex, node, re.I).group(1)
             v = int(re.search(value_regex, node, re.I).group(1))
             X.append((n, v))
         for node in evidence:
-            # print('$$$',node)
             n = re.search(node_regex, node, re.I).group(1)
             v = int(re.search(value_regex, node, re.I).group(1))
             E.append((n, v))
@@ -645,8 +545,6 @@ def read_file(fname):
         for raw_line in f:
             # split the line into components separated by whitespace
             line = raw_line.split()
-            if DEBUG:
-                print(line)
 
             # skip '#' as comment
             if line[0][0] == '#':
@@ -685,20 +583,13 @@ def read_file(fname):
 
             # Queries
             elif any([query_check.match(item) for item in line]) and (len(queries) < Q):
-                if DEBUG:
-                    print('Q={}, its a query!'.format(len(queries)),line)
-                    for q in line[1:]:
-                        print('q=',q)
                 prob_dict = read_problem_query(line)
                 queries.append(prob_dict)
 
     # Create Graph object
     if (len(edges) == M)  and (len(cpds) == R):
         G = Graph(edges=edges)
-        if DEBUG:
-            print('make graph')
         for cpd in cpds:
-            # print(cpd)
             G.update_cpd(cpd)
 
         # Validate graph
@@ -711,8 +602,6 @@ def read_file(fname):
             err = True
         if err:
             return
-    if DEBUG:
-        print(len(edges),M, len(queries),Q,len(cpds), R)
 
     return G, queries
 
@@ -723,7 +612,6 @@ if __name__ == "__main__":
         # read filename as argument
         fname = sys.argv[1]
         G, queries = read_file(fname)
-        # pprint.pprint(queries)
 
         # Run queries from file
         for query in queries:
@@ -732,29 +620,5 @@ if __name__ == "__main__":
                 p = G.infer(q)
                 print('    {} = {:.4f}'.format(q, p))
 
-        # print(G.edges)
-        # print(G.cpd)
-        # for node, cpd in iter(G.cpd.items()):
-        #     print(node, cpd.cpd)
-        #
-        # queries = [
-        #     [[('A', 1)], [('B', 0)]],
-        #     [[('A', 1)], [('D', 0)]],
-        #     [[('B', 1)], [('A', 1)]],
-        #     [[('B', 1)], [('C', 1)]],
-        #     [[('A', 1)], [('B', 0)]],
-        #     [[('C', 1)], []],
-        #     [[('C', 1)], [('A', 1)]],
-        #     [[('A', 1), ('D', 1)], [('F', 0), ('B', 1)]]
-        # ]
-
-        # for q in queries:
-        #     p = G.infer(q[0], q[1])
-        #     print(q, p)
-
     else:
-
-        qstr = "P( A1, B1 | C0, D1)      "
-        X, E = parse_query(qstr)
-        print(X)
-        print(E)
+        print('Include filename for Graph parameters as argument')
