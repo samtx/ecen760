@@ -647,22 +647,21 @@ def read_file(fname):
                 queries.append(prob_dict)
 
     # Create Graph object
-    if (len(edges) == M)  and (len(cpds) == R):
-        G = Graph(edges=edges)
-        G.is_credal = is_credal  # set credal network flag
-        for cpd in cpds:
-            G.update_cpd(cpd)
+    G = Graph(edges=edges)
+    G.is_credal = is_credal  # set credal network flag
+    for cpd in cpds:
+        G.update_cpd(cpd)
 
-        # Validate graph
-        err = False
-        if len(G.nodes) != V:
-            print('Not the correct number of nodes')
-            err = True
-        if len(G.edges) != M:
-            print('Not the correct number of edges')
-            err = True
-        if err:
-            return
+    # Validate graph
+    err = False
+    if len(G.nodes) != V:
+        print('Not the correct number of nodes')
+        err = True
+    if len(G.edges) != M:
+        print('Not the correct number of edges')
+        err = True
+    if err:
+        return
 
     return G, queries
 
