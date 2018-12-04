@@ -33,6 +33,9 @@ class Graph(object):
         self.leaf_nodes = set()
         self.find_root_and_leaf_nodes()
 
+        # Add flag for credal networks
+        self.is_credal = False
+
     def build_cpds(self):
         """
         Build dict of blank CPDs based on number of parents per node
@@ -581,6 +584,7 @@ def read_file(fname):
     Read problem file, generate graph and questions
     """
     G = None
+    is_credal = False  # support for credal sets
     edges = set()
     queries = []
     cpds = []
@@ -615,9 +619,19 @@ def read_file(fname):
             # Conditional Probability Distributions
             elif '=' in line:
                 # build data list
+                # print('line', line)
                 data_list = []
-                prob = float(line[-1])
+                prob_str = line[-1]
+                if ',' in prob_str:
+                    # Draw from uniform distribution for intervals
+                    is_credal = True
+                    low, high = [float(x) for x in prob_str.split(',')]
+                    prob = np.random.uniform(low, high)
+                    # print('low={:.2f}, high={:.2f}, prob={:.4f}'.format(low,high,prob))
+                else:
+                    prob = float(prob_str)
                 data_list.append((line[0][0], int(line[0][1]), prob))
+                # print('data_list',data_list,'   line',line)
                 for x in line[1:]:
                     if x == '|':
                         continue
@@ -635,6 +649,7 @@ def read_file(fname):
     # Create Graph object
     if (len(edges) == M)  and (len(cpds) == R):
         G = Graph(edges=edges)
+        G.is_credal = is_credal  # set credal network flag
         for cpd in cpds:
             G.update_cpd(cpd)
 
@@ -663,8 +678,16 @@ if __name__ == "__main__":
         for query in queries:
             print('Problem {}'.format(query['question_number']))
             for q in query['query_list']:
-                p = G.infer(q)
-                print('    {} = {:.4f}'.format(q, p))
-
+                if not G.is_credal:
+                    p = G.infer(q)
+                    print('    {} = {:.4f}'.format(q, p))
+                else:
+                    # Re-create graph with drawn CPDs from credal sets
+                    n = 10000   # number of samples
+                    p = np.zeros(n)
+                    for i in range(n):
+                        p[i] = G.infer(q)
+                        G, _ = read_file(fname)
+                    print('    {} = [{:.4f}, {:.4f}]'.format(q, np.min(p), np.max(p)))
     else:
         print("Include filename 'project.txt' for Graph parameters as argument")
